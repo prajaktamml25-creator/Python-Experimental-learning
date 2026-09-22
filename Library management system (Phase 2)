@@ -1,0 +1,172 @@
+import json
+from datetime import datetime, timedelta
+
+FILE = "library.json"
+
+try:
+    with open(FILE, "r") as f:
+        data = json.load(f)
+except:
+    data = {
+        "books": [],
+        "members": [],
+        "transactions": []
+    }
+
+def save():
+    with open(FILE, "w") as f:
+        json.dump(data, f, indent=4)
+
+def add_book():
+    book_id = input("Book ID: ")
+    title = input("Book Title: ")
+    author = input("Author: ")
+
+    data["books"].append({
+        "id": book_id,
+        "title": title,
+        "author": author,
+        "available": True
+    })
+
+    save()
+    print("Book added successfully.")
+
+def search_book():
+    key = input("Enter Book ID or Title: ").lower()
+
+    for book in data["books"]:
+        if key in book["id"].lower() or key in book["title"].lower():
+            print(book)
+            return
+
+    print("Book not found.")
+
+def update_book():
+    book_id = input("Enter Book ID: ")
+
+    for book in data["books"]:
+        if book["id"] == book_id:
+            book["title"] = input("New Title: ")
+            book["author"] = input("New Author: ")
+            save()
+            print("Book updated.")
+            return
+
+    print("Book not found.")
+
+def remove_book():
+    book_id = input("Enter Book ID: ")
+
+    for book in data["books"]:
+        if book["id"] == book_id:
+            data["books"].remove(book)
+            save()
+            print("Book removed.")
+            return
+
+    print("Book not found.")
+
+def register_member():
+    member_id = input("Member ID: ")
+    name = input("Member Name: ")
+
+    data["members"].append({
+        "id": member_id,
+        "name": name
+    })
+
+    save()
+    print("Member registered.")
+
+def issue_book():
+    book_id = input("Book ID: ")
+    member_id = input("Member ID: ")
+
+    for book in data["books"]:
+        if book["id"] == book_id and book["available"]:
+            issue_date = datetime.now()
+            due_date = issue_date + timedelta(days=14)
+
+            book["available"] = False
+
+            data["transactions"].append({
+                "book_id": book_id,
+                "member_id": member_id,
+                "issue_date": str(issue_date.date()),
+                "due_date": str(due_date.date()),
+                "return_date": None,
+                "fine": 0
+            })
+
+            save()
+            print("Book issued successfully.")
+            print("Due Date:", due_date.date())
+            return
+
+    print("Book unavailable or not found.")
+
+def return_book():
+    book_id = input("Book ID: ")
+
+    for transaction in data["transactions"]:
+        if transaction["book_id"] == book_id and transaction["return_date"] is None:
+
+            today = datetime.now().date()
+            due = datetime.strptime(
+                transaction["due_date"], "%Y-%m-%d"
+            ).date()
+
+            late_days = max(0, (today - due).days)
+            fine = late_days * 5
+
+            transaction["return_date"] = str(today)
+            transaction["fine"] = fine
+
+            for book in data["books"]:
+                if book["id"] == book_id:
+                    book["available"] = True
+
+            save()
+
+            print("Book returned successfully.")
+            print("Fine: ₹", fine)
+            return
+
+    print("Transaction not found.")
+
+def main():
+    while True:
+        print("\n===== LIBRARY MANAGEMENT SYSTEM =====")
+        print("1. Add Book")
+        print("2. Search Book")
+        print("3. Update Book")
+        print("4. Remove Book")
+        print("5. Register Member")
+        print("6. Issue Book")
+        print("7. Return Book")
+        print("8. Exit")
+
+        choice = input("Enter choice: ")
+
+        if choice == "1":
+            add_book()
+        elif choice == "2":
+            search_book()
+        elif choice == "3":
+            update_book()
+        elif choice == "4":
+            remove_book()
+        elif choice == "5":
+            register_member()
+        elif choice == "6":
+            issue_book()
+        elif choice == "7":
+            return_book()
+        elif choice == "8":
+            print("Thank you!")
+            break
+        else:
+            print("Invalid choice.")
+
+main()
