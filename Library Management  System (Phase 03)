@@ -1,0 +1,322 @@
+import json
+from datetime import date, timedelta
+
+FILE = "library.json"
+FINE_PER_DAY = 5
+ISSUE_DAYS = 14
+
+
+def load_data():
+    try:
+        with open(FILE, "r") as f:
+            data = json.load(f)
+
+        for key in ("books", "members", "transactions"):
+            if key not in data or not isinstance(data[key], list):
+                data[key] = []
+
+        return data
+
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {
+            "books": [],
+            "members": [],
+            "transactions": []
+        }
+
+
+data = load_data()
+
+
+def save_data():
+    with open(FILE, "w") as f:
+        json.dump(data, f, indent=4)
+
+
+def find_book(book_id):
+    for book in data["books"]:
+        if book["id"] == book_id:
+            return book
+    return None
+
+
+def find_member(member_id):
+    for member in data["members"]:
+        if member["id"] == member_id:
+            return member
+    return None
+
+
+def add_book():
+    book_id = input("Book ID: ").strip()
+
+    if not book_id or find_book(book_id):
+        print("Invalid or duplicate Book ID.")
+        return
+
+    title = input("Book Title: ").strip()
+    author = input("Author: ").strip()
+
+    if not title or not author:
+        print("Title and author are required.")
+        return
+
+    data["books"].append({
+        "id": book_id,
+        "title": title,
+        "author": author,
+        "available": True
+    })
+
+    save_data()
+    print("Book added successfully.")
+
+
+def display_books():
+    if not data["books"]:
+        print("No books found.")
+        return
+
+    for book in data["books"]:
+        status = "Available" if book["available"] else "Issued"
+
+        print(
+            book["id"], "|",
+            book["title"], "|",
+            book["author"], "|",
+            status
+        )
+
+
+def search_book():
+    key = input("Enter Book ID or Title: ").strip().lower()
+
+    results = [
+        book for book in data["books"]
+        if key and (
+            key in book["id"].lower()
+            or key in book["title"].lower()
+        )
+    ]
+
+    if results:
+        for book in results:
+            print(book)
+    else:
+        print("Book not found.")
+
+
+def update_book():
+    book_id = input("Enter Book ID: ").strip()
+    book = find_book(book_id)
+
+    if not book:
+        print("Book not found.")
+        return
+
+    title = input("New Title (Enter to skip): ").strip()
+    author = input("New Author (Enter to skip): ").strip()
+
+    if title:
+        book["title"] = title
+
+    if author:
+        book["author"] = author
+
+    save_data()
+    print("Book updated successfully.")
+
+
+def remove_book():
+    book_id = input("Enter Book ID: ").strip()
+    book = find_book(book_id)
+
+    if not book:
+        print("Book not found.")
+        return
+
+    if not book["available"]:
+        print("Cannot remove an issued book.")
+        return
+
+    data["books"].remove(book)
+    save_data()
+    print("Book removed successfully.")
+
+
+def register_member():
+    member_id = input("Member ID: ").strip()
+
+    if not member_id or find_member(member_id):
+        print("Invalid or duplicate Member ID.")
+        return
+
+    name = input("Member Name: ").strip()
+    phone = input("Phone Number: ").strip()
+
+    if not name:
+        print("Member name is required.")
+        return
+
+    data["members"].append({
+        "id": member_id,
+        "name": name,
+        "phone": phone
+    })
+
+    save_data()
+    print("Member registered successfully.")
+
+
+def display_members():
+    if not data["members"]:
+        print("No members registered.")
+        return
+
+    for member in data["members"]:
+        print(
+            member["id"], "|",
+            member["name"], "|",
+            member["phone"]
+        )
+
+
+def issue_book():
+    book_id = input("Book ID: ").strip()
+    member_id = input("Member ID: ").strip()
+
+    book = find_book(book_id)
+    member = find_member(member_id)
+
+    if not book:
+        print("Book not found.")
+        return
+
+    if not member:
+        print("Member not found. Register first.")
+        return
+
+    if not book["available"]:
+        print("Book is already issued.")
+        return
+
+    today = date.today()
+    due_date = today + timedelta(days=ISSUE_DAYS)
+
+    book["available"] = False
+
+    data["transactions"].append({
+        "book_id": book_id,
+        "member_id": member_id,
+        "issue_date": str(today),
+        "due_date": str(due_date),
+        "return_date": None,
+        "fine": 0
+    })
+
+    save_data()
+
+    print("Book issued successfully.")
+    print("Issue Date:", today)
+    print("Due Date:", due_date)
+
+
+def return_book():
+    book_id = input("Book ID: ").strip()
+
+    transaction = next(
+        (
+            t for t in reversed(data["transactions"])
+            if t["book_id"] == book_id
+            and t["return_date"] is None
+        ),
+        None
+    )
+
+    if not transaction:
+        print("No active issue found.")
+        return
+
+    today = date.today()
+    due_date = date.fromisoformat(transaction["due_date"])
+
+    late_days = max(0, (today - due_date).days)
+    fine = late_days * FINE_PER_DAY
+
+    transaction["return_date"] = str(today)
+    transaction["fine"] = fine
+
+    book = find_book(book_id)
+
+    if book:
+        book["available"] = True
+
+    save_data()
+
+    print("Book returned successfully.")
+    print("Late Days:", late_days)
+    print("Fine: Rs.", fine)
+
+
+def transaction_history():
+    if not data["transactions"]:
+        print("No transactions found.")
+        return
+
+    for t in data["transactions"]:
+        print(
+            "Book:", t["book_id"],
+            "| Member:", t["member_id"],
+            "| Issued:", t["issue_date"],
+            "| Due:", t["due_date"],
+            "| Returned:", t["return_date"] or "Not Returned",
+            "| Fine: Rs.", t["fine"]
+        )
+
+
+def main():
+    while True:
+        print("\n===== LIBRARY MANAGEMENT SYSTEM =====")
+        print("1. Add Book")
+        print("2. Display All Books")
+        print("3. Search Book")
+        print("4. Update Book")
+        print("5. Remove Book")
+        print("6. Register Member")
+        print("7. Display Members")
+        print("8. Issue Book")
+        print("9. Return Book")
+        print("10. Transaction History")
+        print("11. Exit")
+
+        choice = input("Enter your choice: ").strip()
+
+        if choice == "1":
+            add_book()
+        elif choice == "2":
+            display_books()
+        elif choice == "3":
+            search_book()
+        elif choice == "4":
+            update_book()
+        elif choice == "5":
+            remove_book()
+        elif choice == "6":
+            register_member()
+        elif choice == "7":
+            display_members()
+        elif choice == "8":
+            issue_book()
+        elif choice == "9":
+            return_book()
+        elif choice == "10":
+            transaction_history()
+        elif choice == "11":
+            print("Thank you for using the Library Management System!")
+            break
+        else:
+            print("Invalid choice. Please try again.")
+
+
+if __name__ == "__main__":
+    main()
