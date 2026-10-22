@@ -1,0 +1,460 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Library Management System</title>
+
+<style>
+body {
+    font-family: Arial, sans-serif;
+    background: #f1f5f9;
+    margin: 0;
+    padding: 20px;
+    color: #1e293b;
+}
+.container {
+    max-width: 1000px;
+    margin: auto;
+    background: white;
+    padding: 25px;
+    border-radius: 12px;
+    box-shadow: 0 4px 15px #0001;
+}
+h1 {
+    text-align: center;
+    color: #2563eb;
+}
+.menu {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 10px;
+    margin: 25px 0;
+}
+button {
+    padding: 12px;
+    border: none;
+    border-radius: 6px;
+    background: #2563eb;
+    color: white;
+    cursor: pointer;
+    font-size: 14px;
+}
+button:hover {
+    background: #1d4ed8;
+}
+.exit {
+    background: #dc2626;
+}
+.exit:hover {
+    background: #b91c1c;
+}
+#output {
+    margin-top: 20px;
+    overflow-x: auto;
+}
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 15px;
+}
+th, td {
+    border: 1px solid #ddd;
+    padding: 10px;
+    text-align: left;
+}
+th {
+    background: #dbeafe;
+}
+input {
+    padding: 10px;
+    margin: 5px;
+    border: 1px solid #cbd5e1;
+    border-radius: 5px;
+}
+form {
+    margin: 15px 0;
+}
+.message {
+    padding: 12px;
+    background: #eff6ff;
+    border-radius: 6px;
+    margin-top: 10px;
+}
+</style>
+</head>
+
+<body>
+<div class="container">
+    <h1>Library Management System</h1>
+    <p style="text-align:center">
+        Manage books, members, issues, returns and fines.
+    </p>
+
+    <div class="menu">
+        <button onclick="addBook()">1. Add Book</button>
+        <button onclick="displayBooks()">2. Display Books</button>
+        <button onclick="searchBook()">3. Search Book</button>
+        <button onclick="updateBook()">4. Update Book</button>
+        <button onclick="removeBook()">5. Remove Book</button>
+        <button onclick="registerMember()">6. Register Member</button>
+        <button onclick="displayMembers()">7. Display Members</button>
+        <button onclick="issueBook()">8. Issue Book</button>
+        <button onclick="returnBook()">9. Return Book</button>
+        <button onclick="history()">10. Transaction History</button>
+        <button class="exit" onclick="exitSystem()">11. Exit</button>
+    </div>
+
+    <div id="output">
+        <div class="message">
+            Select an option from the menu to get started.
+        </div>
+    </div>
+</div>
+
+<script>
+const FINE_PER_DAY = 5;
+const ISSUE_DAYS = 14;
+
+let data;
+
+try {
+    data = JSON.parse(localStorage.getItem("libraryData")) || {};
+} catch (e) {
+    data = {};
+}
+
+data.books = Array.isArray(data.books) ? data.books : [];
+data.members = Array.isArray(data.members) ? data.members : [];
+data.transactions = Array.isArray(data.transactions)
+    ? data.transactions : [];
+
+function saveData() {
+    localStorage.setItem("libraryData", JSON.stringify(data));
+}
+
+function show(message) {
+    document.getElementById("output").innerHTML =
+        '<div class="message">' + message + '</div>';
+}
+
+function escapeHTML(value) {
+    return String(value ?? "").replace(/[&<>"']/g, ch => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;"
+    })[ch]);
+}
+
+function findBook(id) {
+    return data.books.find(b => b.id === id);
+}
+
+function findMember(id) {
+    return data.members.find(m => m.id === id);
+}
+
+function addBook() {
+    const id = prompt("Enter Book ID:");
+    if (id === null) return;
+    const bookId = id.trim();
+
+    if (!bookId || findBook(bookId)) {
+        alert("Invalid or duplicate Book ID.");
+        return;
+    }
+
+    const title = prompt("Enter Book Title:");
+    if (title === null) return;
+
+    const author = prompt("Enter Author:");
+    if (author === null) return;
+
+    if (!title.trim() || !author.trim()) {
+        alert("Title and author are required.");
+        return;
+    }
+
+    data.books.push({
+        id: bookId,
+        title: title.trim(),
+        author: author.trim(),
+        available: true
+    });
+
+    saveData();
+    show("Book added successfully!");
+}
+
+function displayBooks() {
+    if (!data.books.length) {
+        show("No books found.");
+        return;
+    }
+
+    let html = "<h2>All Books</h2><table><tr>" +
+        "<th>ID</th><th>Title</th><th>Author</th><th>Status</th></tr>";
+
+    data.books.forEach(b => {
+        html += `<tr><td>${escapeHTML(b.id)}</td>
+        <td>${escapeHTML(b.title)}</td>
+        <td>${escapeHTML(b.author)}</td>
+        <td>${b.available ? "Available" : "Issued"}</td></tr>`;
+    });
+
+    show(html + "</table>");
+}
+
+function searchBook() {
+    const key = prompt("Enter Book ID or Title:");
+    if (key === null) return;
+
+    const q = key.trim().toLowerCase();
+    const results = data.books.filter(b =>
+        q && (b.id.toLowerCase().includes(q) ||
+              b.title.toLowerCase().includes(q))
+    );
+
+    if (!results.length) {
+        show("Book not found.");
+        return;
+    }
+
+    let html = "<h2>Search Results</h2><table><tr>" +
+        "<th>ID</th><th>Title</th><th>Author</th><th>Status</th></tr>";
+
+    results.forEach(b => {
+        html += `<tr><td>${escapeHTML(b.id)}</td>
+        <td>${escapeHTML(b.title)}</td>
+        <td>${escapeHTML(b.author)}</td>
+        <td>${b.available ? "Available" : "Issued"}</td></tr>`;
+    });
+
+    show(html + "</table>");
+}
+
+function updateBook() {
+    const id = prompt("Enter Book ID:");
+    if (id === null) return;
+
+    const book = findBook(id.trim());
+    if (!book) {
+        show("Book not found.");
+        return;
+    }
+
+    const title = prompt("New Title (leave blank to skip):");
+    if (title === null) return;
+
+    const author = prompt("New Author (leave blank to skip):");
+    if (author === null) return;
+
+    if (title.trim()) book.title = title.trim();
+    if (author.trim()) book.author = author.trim();
+
+    saveData();
+    show("Book updated successfully!");
+}
+
+function removeBook() {
+    const id = prompt("Enter Book ID:");
+    if (id === null) return;
+
+    const index = data.books.findIndex(b => b.id === id.trim());
+
+    if (index === -1) {
+        show("Book not found.");
+        return;
+    }
+
+    if (!data.books[index].available) {
+        show("Cannot remove an issued book.");
+        return;
+    }
+
+    data.books.splice(index, 1);
+    saveData();
+    show("Book removed successfully!");
+}
+
+function registerMember() {
+    const id = prompt("Enter Member ID:");
+    if (id === null) return;
+    const memberId = id.trim();
+
+    if (!memberId || findMember(memberId)) {
+        show("Invalid or duplicate Member ID.");
+        return;
+    }
+
+    const name = prompt("Enter Member Name:");
+    if (name === null) return;
+
+    const phone = prompt("Enter Phone Number:");
+    if (phone === null) return;
+
+    if (!name.trim()) {
+        show("Member name is required.");
+        return;
+    }
+
+    data.members.push({
+        id: memberId,
+        name: name.trim(),
+        phone: phone.trim()
+    });
+
+    saveData();
+    show("Member registered successfully!");
+}
+
+function displayMembers() {
+    if (!data.members.length) {
+        show("No members registered.");
+        return;
+    }
+
+    let html = "<h2>Registered Members</h2><table><tr>" +
+        "<th>ID</th><th>Name</th><th>Phone</th></tr>";
+
+    data.members.forEach(m => {
+        html += `<tr><td>${escapeHTML(m.id)}</td>
+        <td>${escapeHTML(m.name)}</td>
+        <td>${escapeHTML(m.phone)}</td></tr>`;
+    });
+
+    show(html + "</table>");
+}
+
+function issueBook() {
+    const id = prompt("Enter Book ID:");
+    if (id === null) return;
+    const bookId = id.trim();
+
+    const memberInput = prompt("Enter Member ID:");
+    if (memberInput === null) return;
+    const memberId = memberInput.trim();
+
+    const book = findBook(bookId);
+    const member = findMember(memberId);
+
+    if (!book) {
+        show("Book not found.");
+        return;
+    }
+
+    if (!member) {
+        show("Member not found. Register first.");
+        return;
+    }
+
+    if (!book.available) {
+        show("Book is already issued.");
+        return;
+    }
+
+    const today = new Date();
+    const dueDate = new Date(today);
+    dueDate.setDate(dueDate.getDate() + ISSUE_DAYS);
+
+    book.available = false;
+
+    data.transactions.push({
+        book_id: bookId,
+        member_id: memberId,
+        issue_date: formatDate(today),
+        due_date: formatDate(dueDate),
+        return_date: null,
+        fine: 0
+    });
+
+    saveData();
+
+    show(`Book issued successfully!<br>
+    Issue Date: ${formatDate(today)}<br>
+    Due Date: ${formatDate(dueDate)}`);
+}
+
+function formatDate(d) {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+}
+
+function parseDate(s) {
+    const [y, m, d] = s.split("-").map(Number);
+    return new Date(y, m - 1, d);
+}
+
+function returnBook() {
+    const id = prompt("Enter Book ID:");
+    if (id === null) return;
+    const bookId = id.trim();
+
+    const transaction = [...data.transactions].reverse().find(t =>
+        t.book_id === bookId && t.return_date === null
+    );
+
+    if (!transaction) {
+        show("No active issue found.");
+        return;
+    }
+
+    const today = new Date();
+    const dueDate = parseDate(transaction.due_date);
+    const todayOnly = parseDate(formatDate(today));
+
+    const lateDays = Math.max(
+        0, Math.floor((todayOnly - dueDate) / 86400000)
+    );
+    const fine = lateDays * FINE_PER_DAY;
+
+    transaction.return_date = formatDate(today);
+    transaction.fine = fine;
+
+    const book = findBook(bookId);
+    if (book) book.available = true;
+
+    saveData();
+
+    show(`Book returned successfully!<br>
+    Late Days: ${lateDays}<br>
+    Fine: Rs. ${fine}`);
+}
+
+function history() {
+    if (!data.transactions.length) {
+        show("No transactions found.");
+        return;
+    }
+
+    let html = "<h2>Transaction History</h2><table><tr>" +
+        "<th>Book ID</th><th>Member ID</th><th>Issued</th>" +
+        "<th>Due</th><th>Returned</th><th>Fine (Rs.)</th></tr>";
+
+    data.transactions.forEach(t => {
+        html += `<tr>
+        <td>${escapeHTML(t.book_id)}</td>
+        <td>${escapeHTML(t.member_id)}</td>
+        <td>${escapeHTML(t.issue_date)}</td>
+        <td>${escapeHTML(t.due_date)}</td>
+        <td>${escapeHTML(t.return_date || "Not Returned")}</td>
+        <td>${Number(t.fine) || 0}</td></tr>`;
+    });
+
+    show(html + "</table>");
+}
+
+function exitSystem() {
+    saveData();
+    show("Thank you for using the Library Management System!");
+}
+
+saveData();
+</script>
+</body>
+</html>
